@@ -1,0 +1,206 @@
+---
+version: "2.0"
+
+services:
+  envoy:
+    image: ghcr.io/ar-io/ar-io-envoy:d26d4958a2624f85c9f430e6a760523102a9e891
+    # restart: on-failure:5
+    expose:
+      - port: 3000
+        as: 80
+        to:
+          - global: true
+          - service: core
+          - service: observer
+          - service: resolver
+      # - port: 9901 # Don't expose admin port by default
+      #   to:
+      #     - global: true
+    env:
+      - LOG_LEVEL=${ENVOY_LOG_LEVEL:-info}
+      - TVAL_AR_IO_HOST=core
+      - TVAL_AR_IO_PORT=4000
+      - TVAL_OBSERVER_HOST=observer
+      - TVAL_OBSERVER_PORT=5050
+      - TVAL_GATEWAY_HOST=${TRUSTED_GATEWAY_HOST:-arweave.net}
+      - TVAL_GRAPHQL_HOST=${GRAPHQL_HOST:-core}
+      - TVAL_GRAPHQL_PORT=${GRAPHQL_PORT:-4000}
+      - TVAL_ARNS_ROOT_HOST=${ARNS_ROOT_HOST:-}
+    depends-on:
+      - service: core
+      - service: observer
+
+  core:
+    image: ghcr.io/ar-io/ar-io-core:c9bf76284c39bdfc10381f6becb892442e183098
+    # restart: on-failure:5
+    expose:
+      - port: 4000
+        to:
+          - service: envoy
+          - service: observer
+          - service: resolver
+          - service: litestream
+    env:
+      - NODE_ENV=${NODE_ENV:-production}
+      - LOG_LEVEL=${CORE_LOG_LEVEL:-info}
+      - LOG_FORMAT=${LOG_FORMAT:-simple}
+      - TRUSTED_NODE_URL=${TRUSTED_NODE_URL:-}
+      - TRUSTED_GATEWAY_URL=https://${TRUSTED_GATEWAY_HOST:-arweave.net}
+      - START_HEIGHT=${START_HEIGHT:-}
+      - STOP_HEIGHT=${STOP_HEIGHT:-}
+      - SKIP_CACHE=${SKIP_CACHE:-}
+      - SIMULATED_REQUEST_FAILURE_RATE=${SIMULATED_REQUEST_FAILURE_RATE:-}
+      - INSTANCE_ID=${INSTANCE_ID:-}
+      - AR_IO_WALLET=${AR_IO_WALLET:-}
+      - ADMIN_API_KEY=${ADMIN_API_KEY:-}
+      - BACKFILL_BUNDLE_RECORDS=${BACKFILL_BUNDLE_RECORDS:-}
+      - FILTER_CHANGE_REPROCESS=${FILTER_CHANGE_REPROCESS:-}
+      - ANS104_UNBUNDLE_WORKERS=${ANS104_UNBUNDLE_WORKERS:-}
+      - ANS104_DOWNLOAD_WORKERS=${ANS104_DOWNLOAD_WORKERS:-}
+      - ANS104_UNBUNDLE_FILTER=${ANS104_UNBUNDLE_FILTER:-}
+      - ANS104_INDEX_FILTER=${ANS104_INDEX_FILTER:-}
+      - ARNS_ROOT_HOST=${ARNS_ROOT_HOST:-}
+      - SANDBOX_PROTOCOL=${SANDBOX_PROTOCOL:-}
+      - START_WRITERS=${START_WRITERS:-}
+      - IO_PROCESS_ID=${IO_PROCESS_ID:-}
+      - CHAIN_CACHE_TYPE=${CHAIN_CACHE_TYPE:-redis}
+      - REDIS_CACHE_URL=${REDIS_CACHE_URL:-redis://redis:6379}
+      - REDIS_CACHE_TTL_SECONDS=${REDIS_CACHE_TTL_SECONDS:-}
+      - NODE_JS_MAX_OLD_SPACE_SIZE=${NODE_JS_MAX_OLD_SPACE_SIZE:-}
+      - ENABLE_FS_HEADER_CACHE_CLEANUP=${ENABLE_FS_HEADER_CACHE_CLEANUP:-true}
+      - ON_DEMAND_RETRIEVAL_ORDER=${ON_DEMAND_RETRIEVAL_ORDER:-}
+      - WEBHOOK_TARGET_SERVERS=${WEBHOOK_TARGET_SERVERS:-}
+      - WEBHOOK_INDEX_FILTER=${WEBHOOK_INDEX_FILTER:-}
+      - WEBHOOK_BLOCK_FILTER=${WEBHOOK_INDEX_FILTER:-}
+      - CONTIGUOUS_DATA_CACHE_CLEANUP_THRESHOLD=${CONTIGUOUS_DATA_CACHE_CLEANUP_THRESHOLD:-}
+      - TRUSTED_ARNS_RESOLVER_TYPE=${TRUSTED_ARNS_RESOLVER_TYPE:-gateway}
+      - TRUSTED_ARNS_RESOLVER_URL=${TRUSTED_ARNS_RESOLVER_URL:-https://__NAME__.arweave.dev}
+      - ENABLE_MEMPOOL_WATCHER=${ENABLE_MEMPOOL_WATCHER:-false}
+      - MEMPOOL_POOLING_INTERVAL_MS=${MEMPOOL_POOLING_INTERVAL_MS:-}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_REGION=${AWS_REGION:-}
+      - AWS_ENDPOINT=${AWS_ENDPOINT:-}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET:-}
+      - AWS_S3_PREFIX=${AWS_S3_PREFIX:-}
+      - AR_IO_NODE_RELEASE=${AR_IO_NODE_RELEASE:-15}
+      - CHUNK_POST_URLS=${CHUNK_POST_URLS:-}
+      - CHUNK_POST_RESPONSE_TIMEOUT_MS=${CHUNK_POST_RESPONSE_TIMEOUT_MS:-}
+      - CHUNK_POST_ABORT_TIMEOUT_MS=${CHUNK_POST_ABORT_TIMEOUT_MS:-}
+      - AO_CU_URL=${AO_CU_URL:-}
+      - AO_MU_URL=${AO_MU_URL:-}
+      - AO_GATEWAY_URL=${AO_GATEWAY_URL:-}
+      - AO_GRAPHQL_URL=${AO_GRAPHQL_URL:-}
+    depends-on:
+      - service: redis
+
+  redis:
+    image: redis:7
+    command: redis-server --maxmemory ${REDIS_MAX_MEMORY:-256mb} --maxmemory-policy allkeys-lru ${EXTRA_REDIS_FLAGS:---save "" --appendonly no}
+    # restart: on-failure:5
+    expose:
+      - port: 6379
+        to:
+          - service: core
+
+  observer:
+    image: ghcr.io/ar-io/ar-io-observer:b2c64c3e6838511966ca4b70c05294f35aa91114
+    # restart: on-failure:5
+    expose:
+      - port: 5050
+        to:
+          - service: envoy
+    env:
+      - PORT=5050
+      - LOG_LEVEL=${OBSERVER_LOG_LEVEL:-info}
+      - OBSERVER_WALLET=${OBSERVER_WALLET:-<example>}
+      - IO_PROCESS_ID=${IO_PROCESS_ID:-}
+      - SUBMIT_CONTRACT_INTERACTIONS=${SUBMIT_CONTRACT_INTERACTIONS:-true}
+      - NUM_ARNS_NAMES_TO_OBSERVE_PER_GROUP=${NUM_ARNS_NAMES_TO_OBSERVE_PER_GROUP:-5}
+      - REPORT_GENERATION_INTERVAL_MS=${REPORT_GENERATION_INTERVAL_MS:-}
+      - RUN_OBSERVER=${RUN_OBSERVER:-true}
+      - MIN_RELEASE_NUMBER=${MIN_RELEASE_NUMBER:-0}
+      - AR_IO_NODE_RELEASE=${AR_IO_NODE_RELEASE:-15}
+      - AO_CU_URL=${AO_CU_URL:-}
+      - AO_MU_URL=${AO_MU_URL:-}
+      - AO_GATEWAY_URL=${AO_GATEWAY_URL:-}
+      - AO_GRAPHQL_URL=${AO_GRAPHQL_URL:-}
+
+  resolver:
+    image: ghcr.io/ar-io/arns-resolver:e35776ceb4324494d403b1fb900bfd06eb97a652
+    # restart: on-failure:5
+    expose:
+      - port: 6000
+        to:
+          - service: envoy
+    env:
+      - PORT=6000
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - IO_PROCESS_ID=${IO_PROCESS_ID:-}
+      - RUN_RESOLVER=${RUN_RESOLVER:-false}
+      - EVALUATION_INTERVAL_MS=${EVALUATION_INTERVAL_MS:-}
+      - ARNS_CACHE_TTL_MS=${RESOLVER_CACHE_TTL_MS:-}
+      - ARNS_CACHE_PATH=${ARNS_CACHE_PATH:-./data/arns}
+      - AO_CU_URL=${AO_CU_URL:-}
+      - AO_MU_URL=${AO_MU_URL:-}
+      - AO_GATEWAY_URL=${AO_GATEWAY_URL:-}
+      - AO_GRAPHQL_URL=${AO_GRAPHQL_URL:-}
+
+profiles:
+  compute:
+    small-profile:
+      resources:
+        cpu:
+          unit: 1.0
+        memory:
+          size: 1Gi
+        storage:
+          name: data
+          size: 512Mi
+
+    core-profile:
+      resources:
+        cpu:
+          unit: 2.0
+        memory:
+          size: 4Gi
+        storage:
+          name: data
+          size: 512Gi
+          attributes:
+            persistent: true
+            class: beta2
+
+  placement:
+    datacenter:
+      attributes:
+        region: ${AKASH_REGION:us-west}
+      pricing:
+        small-profile:
+          denom: uakt
+          amount: 100
+        core-profile:
+          denom: uakt
+          amount: 1000
+
+deployment:
+  core:
+    datacenter:
+      profile: core-profile
+      count: 2
+  envoy:
+    datacenter:
+      profile: small-profile
+      count: 2
+  observer:
+    datacenter:
+      profile: small-profile
+      count: 1
+  resolver:
+    datacenter:
+      profile: small-profile
+      count: 1
+  redis:
+    datacenter:
+      profile: small-profile
+      count: 1
